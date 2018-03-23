@@ -122,7 +122,8 @@ set_curr_task_mycfs(struct rq *rq)
 }
 
 /*
- *
+ * Called by time tick functions. May lead to process switch
+ * This drives the running preemption
  */
 static void
 task_tick_mycfs(struct rq *rq, struct task_struct *curr, int queued)
@@ -131,7 +132,7 @@ task_tick_mycfs(struct rq *rq, struct task_struct *curr, int queued)
 }
 
 /*
- *
+ * Notify the scheduler if a new task has spawned
  */
 static void
 task_fork_mycfs(struct task_struct *p)
@@ -224,3 +225,12 @@ const struct sched_class mycfs_sched_class = {
 #endif
 
 };
+
+/*
+ * Init function
+ */
+__init void
+init_sched_mycfs_class(void)
+{
+
+}

@@ -108,6 +108,10 @@ extern struct mutex sched_domains_mutex;
 
 struct cfs_rq;
 struct rt_rq;
+#ifdef CONFIG_MYCFS
+struct mycfs_rq
+#endif
+
 
 extern struct list_head task_groups;
 
@@ -235,6 +239,12 @@ extern int sched_group_set_shares(struct task_group *tg, unsigned long shares);
 struct cfs_bandwidth { };
 
 #endif	/* CONFIG_CGROUP_SCHED */
+
+#ifdef CONFIG_MYCFS
+struct mycfs_rq{
+
+};
+#endif
 
 /* CFS-related fields in a runqueue */
 struct cfs_rq {
@@ -422,6 +432,9 @@ struct rq {
 
 	struct cfs_rq cfs;
 	struct rt_rq rt;
+#ifdef CONFIG_MYCFS
+	struct mycfs_rq mycfs;
+#endif
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
 	/* list of leaf cfs_rq on this cpu: */
