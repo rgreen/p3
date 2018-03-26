@@ -5,6 +5,15 @@
 #include "sched.h"
 
 /*
+ *
+ */
+void 
+init_mycfs_rq(struct mycfs_rq *mycfs_rq)
+{
+
+}
+
+/*
  * Call when a task enters a runnable state
  * Puts task in runqueue and incrememnts nr_running
  */
