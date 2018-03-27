@@ -206,7 +206,21 @@ check_preempt_wakeup(struct rq *rq, struct task_struct *p, int wake_flags)
 static struct
 *pick_next_task_mycfs(struct rq *rq)
 {
+	struct mycfs_rq *mycfs_rq = &rq->mycfs;
+	struct sched_mycfs_entity *se;
 
+	// You can't pick a task is there are none to choose from
+	if (!mycfs_rq->nr_running)
+		return NULL;
+	
+	// Pick the first entry
+	se = mycfs_pick_first_entity(mycfs_rq);
+	if(!se)
+		return NULL;
+	
+	mycfs_set_next_entity(mycfs_rq, se);
+
+	return task_of(se);
 }
 
 /*
