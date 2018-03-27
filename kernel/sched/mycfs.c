@@ -10,11 +10,17 @@
 #define CPU_PERIOD 100000000LL /* 100ms in ns */
 
 /*
- *
+ * Initialize mycfs rq in the same spirit as the cfs rq
  */
 void 
-init_mycfs_rq(struct mycfs_rq *mycfs_rq)
+init_mycfs_rq(struct mycfs_rq *mycfs_rq, struct rq *parent)
 {
+	mycfs_rq->tasks_timeline = RB_ROOT;
+	mycfs_rq->min_vruntime = (u64)(-(1LL << 20));
+	mycfs_rq->rq = parent;
+#ifndef CONFIG_64BIT
+	mycfs->min_vruntime_copy = mycfs_rq->min_vruntime;
+#endif
 
 }
 
