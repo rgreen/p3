@@ -169,7 +169,20 @@ yield_task_mycfs(struct rq *rq)
 static void
 check_preempt_wakeup(struct rq *rq, struct task_struct *p, int wake_flags)
 {
+	struct task_struct *curr = rq->curr;
+	struct sched_mycfs_entity *se = &curr->myse, *pse = &p->myse;
+	int need_resched;
 
+	if (unlikely(se == pse))
+		return;
+	
+	need_resched = mycfs_update_curr(mycfs_rq_of(se));
+	
+	if (!need_resched && wakeup_preempt_entity(&rq->mycfs, se, pse) != 1){
+		return;
+	}
+	
+	resched_task(curr);
 }
 
 /*
