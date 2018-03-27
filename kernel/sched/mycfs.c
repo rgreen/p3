@@ -151,7 +151,15 @@ dequeue_task_mycfs(struct rq *rq, struct task_struct *p, int flags)
 static void
 yield_task_mycfs(struct rq *rq)
 {
+	struct mycfs_rq *mycfs_rq = &rq->mycfs;
 
+	// Nothing to yield to
+	if (rq->nr_running == 1)
+		return;
+	
+	update_rq_clock(rq);
+	mycfs_update_curr(mycfs_rq);
+	rq->skip_clock_update = 1;
 }
 
 /*
