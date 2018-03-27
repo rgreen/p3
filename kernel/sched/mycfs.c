@@ -78,7 +78,22 @@ enqueue_task_mycfs(struct rq *rq, struct task_struct *p, int flags)
 static void
 dequeue_task_mycfs(struct rq *rq, struct task_struct *p, int flags)
 {
+	struct sched_mycfs_entity *se = &p->myse;
+	struct mycfs_rq *cfs_rq = mycfs_rq_of(se);
 
+	mycfs_update_curr(cfs_rq);
+
+	if (se != cfs_rq->curr)
+		__dequeue_entity(cfs_rq, se);
+	
+	se->on_rq = 0;
+	--cfs_rq->nr_running;
+	dec_nr_runnint(rq);
+
+	if (!(flags & DEQUEUE_SLEEP))
+		se->vruntime -= cfs_rq->min_vruntime;
+
+	mycfs_update_min_vruntime(cfs_rq);
 }
 
 /*
