@@ -4099,6 +4099,41 @@ do_sched_setscheduler(pid_t pid, int policy, struct sched_param __user *param)
 }
 
 /**
+ * set_scheduler_limit - set scheduler_limit - set scheduler limit for CPU capping in my scheduler.
+ * @pid: The pid being limited.
+ * @limit: Upper bound for CPU capping.
+ */
+static int
+set_scheduler_limit( pid_t pid, int limit)
+{
+	int retval;
+
+	if( pid < 0)
+		return -EINVAL;
+	if( limit < 0 || limit > 100)
+		return -EINVAL;
+	retval = limit;
+	return retval;
+}
+
+/**
+ * sched_setlimit - return of setting the schedule limit is success.
+ * @pid: The pid being limited
+ * @limit: Upper bound for CPU capping
+ * 
+ * 0 means success
+ */
+SYSCALL_DEFINE2(sched_setlimit, pid_t, pid, int, limit)
+{
+	if( pid < 0)
+		return -EINVAL;
+	if( limit < 0 || limit > 100)
+		return -EINVAL;
+	return set_scheduler_limit(pid, limit);
+}
+
+
+/**
  * sys_sched_setscheduler - set/change the scheduler policy and RT priority
  * @pid: the pid in question.
  * @policy: new policy.
