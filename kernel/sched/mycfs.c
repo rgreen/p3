@@ -25,12 +25,48 @@ init_mycfs_rq(struct mycfs_rq *mycfs_rq, struct rq *parent)
 }
 
 /*
+ * Helper to get rq of se
+ */
+static inline struct mycfs_rq *
+mycfs_rq_of(struct sched_mycfs_entity *myse)
+{
+	struct task_struct *p = task_of(myse);
+	struct rq *rq = task_rq(p);
+	return &rq->mycfs;
+}
+
+/*
  * Call when a task enters a runnable state
  * Puts task in runqueue and incrememnts nr_running
  */
 static void
 enqueue_task_mycfs(struct rq *rq, struct task_struct *p, int flags)
 {
+	struct sched_mycfs_entity *se = &p->myse;
+	struct mycfs_rq *mycfs_rq = mycfs_rq_of(se);
+
+	if (se->on_rq)
+		return;
+	
+	if (!(flags & ENQUEUE_WAKEUP) || (flags & ENQUEUE_WAKING))
+		se->vruntime += mycfs_rq->min_vruntime;
+
+	mycfs_update_curr(mycfs_rq);
+
+	if (flags & ENQUEUE_WAKEUP) 
+	{
+		u64 vruntime = mycfs_rq->min_vruntime;
+		vruntime = max_vruntime(se->vruntime, vruntime);
+		se->vruntime = vruntime;
+	}
+
+	if (se != myfs_rq->curr)
+		__enqueue_entity(mycfs_rq, se);
+	
+	se->on_rq = 1;
+	inc_nr_running(rq);
+	++mycfs_rq->nr_running;
+}
 
 }
 
