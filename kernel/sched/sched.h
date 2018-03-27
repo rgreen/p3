@@ -1359,6 +1359,10 @@ extern void print_cfs_stats(struct seq_file *m, int cpu);
 extern void print_rt_stats(struct seq_file *m, int cpu);
 
 extern void init_cfs_rq(struct cfs_rq *cfs_rq);
+#ifdef CONFIG_MYCFS
+extern void init_mycfs_rq(struct mycfs_rq *mycfs_rq, struct rq *rq)
+extern int mycfs_scheduler_tick(struct rq *rq);
+#endif
 extern void init_rt_rq(struct rt_rq *rt_rq, struct rq *rq);
 
 extern void cfs_bandwidth_usage_inc(void);
