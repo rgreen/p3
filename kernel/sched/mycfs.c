@@ -3,6 +3,11 @@
  */
 
 #include "sched.h"
+#include <linux/sched.h>
+#include <linux/syscalls.h>
+
+#define SCHED_LATENCY 10000000 /* 10ms in ns */
+#define CPU_PERIOD 100000000LL /* 100ms in ns */
 
 /*
  *
