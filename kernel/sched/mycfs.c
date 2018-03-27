@@ -25,6 +25,54 @@ init_mycfs_rq(struct mycfs_rq *mycfs_rq, struct rq *parent)
 }
 
 /*
+ * Perform the heavy lifting of enqueue
+ */
+static void 
+__enqueue_entitiy(struct mycfs_rq * mycfs_rq, struct sched_mycfs_entity *se)
+{
+	struct rb_node **link = &mycfs_rq->tasks_timeline.rb_node;
+	struct rb_node *parent = NULL;
+	struct sched_mycfs_entity *entry;
+	int leftmost = 1;
+
+	/* Find the correct location in the rbtree */
+	while (*link){
+		parent = *link;
+		// Each entry is a mycfs se)
+		entry = rb_entry(parent, struct sched_mycfs_entity, run_node);
+		if (entity_before(se, entry)){
+			link = &parent->rb_left;
+		}
+		else {
+			link = &parent->rb_right;
+			leftmost = 0;
+		}
+	}
+
+	// Cache of entries run the least ammount of time
+	if (leftmost)
+		cfs_rq->rb_leftmost = &se->run_node;
+
+	rb_link_node(&se->run_node, parent, link);
+	rb_insert_color(&se->run_node, &cfs_rq->tasks_timeline);
+}
+
+/*
+ * Perform the heavy lifting of dequeue
+ */
+static void
+__dequeue_entity(struct mycfs_rq *mycfs_rq, struct sched_mycfs_entity *se)
+{
+	if (mycfs_rq->rb_leftmost == &se->run_node){
+		struct rb_node *next_node;
+		next_node = rb_next(&se->run_node);
+		mycfs_rq->rb_leftmost = next_node;
+	}
+
+	rb_erase(&se->run_node, &mycfs_rq->tasks_timeline)
+}
+
+/*
  * Helper to get rq of se
  */
 static inline struct mycfs_rq *
