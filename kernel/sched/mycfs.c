@@ -201,6 +201,15 @@ check_preempt_wakeup(struct rq *rq, struct task_struct *p, int wake_flags)
 }
 
 /*
+ *
+ */
+static inline struct task_struct *
+task_of(struct sched_mycfs_entity *myse)
+{
+	return container_of(myse, struct task_struct, myse);
+}
+
+/*
  * Choose the most appropriate task eligible to run next
  */
 static struct
