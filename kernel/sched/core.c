@@ -1657,6 +1657,13 @@ static void __sched_fork(struct task_struct *p)
 	INIT_HLIST_HEAD(&p->preempt_notifiers);
 #endif
 
+		// On fork, reset all se variable to initial 0 state
+		p->myse.on_rq = 0;
+		p->myse.exec_start = 0;
+		p->myse.vruntime = 0;
+		p->myse.curr_period_id = 0;
+		p->myse.curr_period_sum_runtime = 0;
+
 #ifdef CONFIG_NUMA_BALANCING
 	if (p->mm && atomic_read(&p->mm->mm_users) == 1) {
 		p->mm->numa_next_scan = jiffies;
@@ -1732,8 +1739,11 @@ void sched_fork(struct task_struct *p)
 		 */
 		p->sched_reset_on_fork = 0;
 	}
-
-	if (!rt_prio(p->prio))
+	
+	// On fork, child process stays on mycfs scheduler
+	if (current->sched_class == &mycfs_sched_class)
+		p->sched_class = &mycfs_sched_class;
+	else if(!rt_prio(p->prio))
 		p->sched_class = &fair_sched_class;
 
 	if (p->sched_class->task_fork)
@@ -2763,13 +2773,18 @@ void scheduler_tick(void)
 	int cpu = smp_processor_id();
 	struct rq *rq = cpu_rq(cpu);
 	struct task_struct *curr = rq->curr;
+	int skipped_task;
 
 	sched_clock_tick();
 
 	raw_spin_lock(&rq->lock);
 	update_rq_clock(rq);
 	update_cpu_load_active(rq);
+	skipped_task = mycfs_scheduler_tick(rq);
 	curr->sched_class->task_tick(rq, curr, 0);
+	if(skipped_task){
+		resched_task(curr)
+	}
 	raw_spin_unlock(&rq->lock);
 
 	perf_event_task_tick();
@@ -3664,8 +3679,9 @@ void rt_mutex_setprio(struct task_struct *p, int prio)
 		dequeue_task(rq, p, 0);
 	if (running)
 		p->sched_class->put_prev_task(rq, p);
-
-	if (rt_prio(prio))
+	if (p->sched_class == &mycfs_sched_class)
+		p->sched_class = &mycfs_sched_class;
+	else if (rt_prio(prio))
 		p->sched_class = &rt_sched_class;
 	else
 		p->sched_class = &fair_sched_class;
@@ -3859,7 +3875,9 @@ __setscheduler(struct rq *rq, struct task_struct *p, int policy, int prio)
 	p->normal_prio = normal_prio(p);
 	/* we are holding p->pi_lock already */
 	p->prio = rt_mutex_getprio(p);
-	if (rt_prio(p->prio)) {
+	if (policy == SCHED_MYCFS)
+		p->sched_class = &mycfs_sched_class;
+	else if (rt_prio(p->prio)) {
 		p->sched_class = &rt_sched_class;
 #ifdef CONFIG_SCHED_HMP
 		if (!cpumask_empty(&hmp_slow_cpu_mask))
@@ -3913,7 +3931,7 @@ recheck:
 
 		if (policy != SCHED_FIFO && policy != SCHED_RR &&
 				policy != SCHED_NORMAL && policy != SCHED_BATCH &&
-				policy != SCHED_IDLE)
+				policy != SCHED_IDLE && policy != SCHED_MYCFS)
 			return -EINVAL;
 	}
 
