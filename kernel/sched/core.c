@@ -4112,7 +4112,7 @@ set_scheduler_limit( pid_t pid, int limit)
 		return -EINVAL;
 	if( limit < 0 || limit > 100)
 		return -EINVAL;
-	retval = limit;
+	retval = 0;
 	return retval;
 }
 
