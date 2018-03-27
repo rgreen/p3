@@ -84,6 +84,22 @@ mycfs_rq_of(struct sched_mycfs_entity *myse)
 }
 
 /*
+ * Check if a limit has been put on the task
+ */
+static inline int
+is_se_limited(struct sched_mycfs_entity *se, struct mycfs_rq *mycfs_rq)
+{
+	struct task_struct *p = task_of(se);
+	if(p->mycfs_cpu_limit == 0)
+		return 0;
+	if(se->curr_period_id != cfs_rq->curr_period)
+		return 0;
+	if(se->curr_period_sum_runtime * 100 <= CPU_PERIOD * p->mycfs_cpu_limit)
+		return 0;
+	return 1;
+}
+
+/*
  * Call when a task enters a runnable state
  * Puts task in runqueue and incrememnts nr_running
  */
@@ -207,6 +223,33 @@ static inline struct task_struct *
 task_of(struct sched_mycfs_entity *myse)
 {
 	return container_of(myse, struct task_struct, myse);
+}
+/*
+ * Helper function to get the next task in the rbtree
+ */
+static struct sched_mycfs_entity *
+mycfs_pick_first_entity(struct mycfs_rq *mycfs_rq)
+{
+	struct rb_node *left = cfs_rq->rb_leftmost;
+	{
+		u64 now = mycfs_rq->rq->clock_task;
+		if(now - mycfs_rq->curr_period_start > CPU_PERIOD) {
+			++mycfs_rq->curr_period;
+			mycfs_rq->curr_period_start = now;
+		}
+	}
+	mycfs_rq->skipped_task = 0;
+
+	while (left) {
+		struct sched_mycfs_entity *se = rb_etry(left, struct sched_mycfs_entity, run_node);
+		int is_limited = is_se_limited(se, mycfs_rq);
+		if (!is_limited)
+			return se;
+		mycfs_rq->skipped_task = 1;
+		left = rb_next(left);
+	}
+
+	return NULL;
 }
 
 /*
