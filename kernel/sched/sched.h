@@ -240,17 +240,26 @@ struct cfs_bandwidth { };
 
 #endif	/* CONFIG_CGROUP_SCHED */
 
-#ifdef CONFIG_MYCFS
 struct mycfs_rq{
+	unsigned int nr_running;
+
 	u64 exec_clock;
 	u64 min_vruntime;
+#ifndef CONFIG_64BIT
+	u64 min_vruntime_copy
+#endif
 
 	struct rb_root tasks_timeline;
 	struct rb_node *rb_leftmost;
 	
-	struct sched_entity *curr, *next, *last, *skip;
+	/* Current running se */
+	struct sched_mycfs_entity *curr;
+
+	int skipped_task;
+
+	/* Runqueue to which this mycfs rq is attached */
+	struct rq *rq;
 };
-#endif
 
 /* CFS-related fields in a runqueue */
 struct cfs_rq {
