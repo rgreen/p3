@@ -162,6 +162,21 @@ yield_task_mycfs(struct rq *rq)
 	rq->skip_clock_update = 1;
 }
 
+static int
+wakeup_preempt_entity(struct mycfs_rq *mycfs_rq, struct sched_mycfs_entity *curr, struct sched_mycfs_entity *se)
+{
+	s64 gran, vdiff = curr->vruntime - se->vruntime;
+	
+	if (vdiff <= 0)
+		return -1;
+	
+	gran = sysctl_sched_wakeup_granularity;
+	if (vdiff > gran)
+		return 0;
+	
+	return 0;
+}
+
 /*
  * Check if a task that entered runnable state should preempt
  * the currently running task
