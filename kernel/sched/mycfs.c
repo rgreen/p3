@@ -253,6 +253,31 @@ mycfs_update_min_vruntime(struct mycfs_rq *Mycfs_rq)
 }
 
 /*
+ * Performs heacy lifting of updating periods
+ */
+static inline int
+__update_curr_mycfs(struct mycfs_rq *Mycfs_rq, struct sched_mycfs_entity *curr, unsigned long delta_exec, u64 now)
+{
+	curr->vruntime += delta_exec;
+	mycfs_update_min_vruntime(Mycfs_rq);
+
+	if (now - Mycfs_rq->curr_period_start > CPU_PERIOD){
+		++cfs_rq->curr_period;
+		Mycfs_rq->curr_period_start = now - delta_exec;
+	}
+
+	if (curr->curr_period_id != Mycfs_rq->curr_period){
+		curr->curr_period_id = Mycfs_rq->curr_period;
+		curr->curr_period_sum_runtime = delta_exec;
+	}
+	else {
+		curr->curr_period_sum_runtime += delta_exec;
+	}
+
+	return is_se_limited(curr, cfs_rq);
+}
+
+/*
  * Call when a task enters a runnable state
  * Puts task in runqueue and incrememnts nr_running
  */
