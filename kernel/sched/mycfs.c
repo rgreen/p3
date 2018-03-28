@@ -427,6 +427,18 @@ check_preempt_wakeup(struct rq *rq, struct task_struct *p, int wake_flags)
 	resched_task(curr);
 }
 
+/*
+ * Helper function to perform a dequeue and set curr as se
+ */
+static inline void
+mycfs_set_next_entity(struct mycfs_rq *Mycfs_rq, struct sched_mycfs_entity *se)
+{
+	if (se->on_rq)
+		__dequeue_entity(Mycfs_rq, se);
+	
+	Mycfs_rq->curr = se;
+	se->exec_start = Mycfs_rq->rq->clock_task;
+}
 
 /*
  * Choose the most appropriate task eligible to run next
