@@ -602,11 +602,49 @@ task_tick_mycfs(struct rq *rq, struct task_struct *curr, int queued)
 
 /*
  * Notify the scheduler if a new task has spawned
+ * Do tasks necessary to forking said task
  */
 static void
 task_fork_mycfs(struct task_struct *p)
 {
+	struct mycfs_rq *Mycfs_rq;
+	struct sched_mycfs_entity *se = &p->myse, *curr;
+	int this_cpu = smp_processor_id();
+	struct rq *rq = this_rq();
+	unsigned long flags;
+	int need_resched;
 
+	raw_spin_lock_irqsave(*rq->lock, flags);
+
+	update_rq_clock(rq);
+
+	Mycfs_rq = &rq->mycfs;
+	curr = Mycfs_rq->curr;
+
+	if (unlikely(task_cpu(p) != this_cpu)){
+		rcu_read_lock();
+		__set_task_cpu(p, this_cpu);
+		rcu_read_unlock();
+	}
+
+	need_resched = mycfs_update_curr(Mycfs_rq);
+
+	if (curr)
+		se->vruntime = curr->vruntime;
+	
+	{
+		u64 vruntime = Mycfs_rq->min_vruntime;
+		vruntime = max_vruntime(se->vruntime, vruntime);
+		se->vruntime = vruntime;
+	}
+
+	if (need_resched && curr && entity_before(curr, se)){
+		swap(curr->vruntime, se->vruntime);
+		resched_task(rq->curr);
+	}
+
+	se->vruntime -= Mycfs_rq->min_vruntime;
+	raw_spin_unlock_irqrestore(&rq->lock, flags);
 }
 
 /*
