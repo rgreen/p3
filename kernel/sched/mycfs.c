@@ -278,6 +278,37 @@ __update_curr_mycfs(struct mycfs_rq *Mycfs_rq, struct sched_mycfs_entity *curr, 
 }
 
 /*
+ * Update curr for the mycfs scheduler (calls __update_curr_mycfs)
+ */
+static int
+mycfs_update_curr(struct mycfs_rq *Mycfs_rq)
+{
+	struct sched_mycfs_entity *curr = Mycfs_rq->curr;
+	u64 now = Mycfs_rq->rq->clock_task;
+	unsigned long delta_exec;
+	int rc;
+
+	if (!curr)
+		return 0;
+	
+	// The change in exec time is just the current time - starting time
+	delta_exec = (unsigned long)(now - curr->exec_start);
+	if (!delta_exec)
+		return 0;
+
+	rc = __update_curr_mycfs(Mycfs_rq, curr, delta_exec, now);
+	curr->exec_start = now;
+
+	{
+		struct task_struct *curtask = task_of(curr);
+		cpuacct_charge(curtask, delta_exec);
+		account_group_exec_runtime(curtask, delta_exec);
+	}
+	return rc;
+}
+
+
+/*
  * Call when a task enters a runnable state
  * Puts task in runqueue and incrememnts nr_running
  */
