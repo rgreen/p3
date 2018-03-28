@@ -316,29 +316,29 @@ static void
 enqueue_task_mycfs(struct rq *rq, struct task_struct *p, int flags)
 {
 	struct sched_mycfs_entity *se = &p->myse;
-	struct mycfs_rq *mycfs_rq = mycfs_rq_of(se);
+	struct mycfs_rq *Mycfs_rq = mycfs_rq_of(se);
 
 	if (se->on_rq)
 		return;
 	
 	if (!(flags & ENQUEUE_WAKEUP) || (flags & ENQUEUE_WAKING))
-		se->vruntime += mycfs_rq->min_vruntime;
+		se->vruntime += Mycfs_rq->min_vruntime;
 
-	mycfs_update_curr(mycfs_rq);
+	mycfs_update_curr(Mycfs_rq);
 
 	if (flags & ENQUEUE_WAKEUP) 
 	{
-		u64 vruntime = mycfs_rq->min_vruntime;
+		u64 vruntime = Mycfs_rq->min_vruntime;
 		vruntime = max_vruntime(se->vruntime, vruntime);
 		se->vruntime = vruntime;
 	}
 
 	if (se != myfs_rq->curr)
-		__enqueue_entity(mycfs_rq, se);
+		__enqueue_entity(Mycfs_rq, se);
 	
 	se->on_rq = 1;
 	inc_nr_running(rq);
-	++mycfs_rq->nr_running;
+	++Mycfs_rq->nr_running;
 }
 
 }
@@ -352,21 +352,21 @@ static void
 dequeue_task_mycfs(struct rq *rq, struct task_struct *p, int flags)
 {
 	struct sched_mycfs_entity *se = &p->myse;
-	struct mycfs_rq *cfs_rq = mycfs_rq_of(se);
+	struct mycfs_rq *Mycfs_rq = mycfs_rq_of(se);
 
-	mycfs_update_curr(cfs_rq);
+	mycfs_update_curr(Mycfs_rq);
 
-	if (se != cfs_rq->curr)
-		__dequeue_entity(cfs_rq, se);
+	if (se != Mycfs_rq->curr)
+		__dequeue_entity(Mycfs_rq, se);
 	
 	se->on_rq = 0;
-	--cfs_rq->nr_running;
-	dec_nr_runnint(rq);
+	--Mycfs_rq->nr_running;
+	dec_nr_running(rq);
 
 	if (!(flags & DEQUEUE_SLEEP))
-		se->vruntime -= cfs_rq->min_vruntime;
+		se->vruntime -= Mycfs_rq->min_vruntime;
 
-	mycfs_update_min_vruntime(cfs_rq);
+	mycfs_update_min_vruntime(Mycfs_rq);
 }
 
 /*
@@ -376,22 +376,24 @@ dequeue_task_mycfs(struct rq *rq, struct task_struct *p, int flags)
 static void
 yield_task_mycfs(struct rq *rq)
 {
-	struct mycfs_rq *mycfs_rq = &rq->mycfs;
+	struct mycfs_rq *Mycfs_rq = &rq->mycfs;
 
 	// Nothing to yield to
 	if (rq->nr_running == 1)
 		return;
 	
 	update_rq_clock(rq);
-	mycfs_update_curr(mycfs_rq);
+	mycfs_update_curr(Mycfs_rq);
 	rq->skip_clock_update = 1;
 }
 
 static int
-wakeup_preempt_entity(struct mycfs_rq *mycfs_rq, struct sched_mycfs_entity *curr, struct sched_mycfs_entity *se)
+wakeup_preempt_entity(struct mycfs_rq *Mycfs_rq, struct sched_mycfs_entity *curr, struct sched_mycfs_entity *se)
 {
 	s64 gran, vdiff = curr->vruntime - se->vruntime;
-	
+	if (is_se_limited(curr, Mycfs_rq) && !is_se_limited(se, Mycfs_rq))
+		return 1;
+
 	if (vdiff <= 0)
 		return -1;
 	
