@@ -108,9 +108,7 @@ extern struct mutex sched_domains_mutex;
 
 struct cfs_rq;
 struct rt_rq;
-#ifdef CONFIG_MYCFS
 struct mycfs_rq
-#endif
 
 
 extern struct list_head task_groups;
@@ -447,9 +445,7 @@ struct rq {
 
 	struct cfs_rq cfs;
 	struct rt_rq rt;
-#ifdef CONFIG_MYCFS
 	struct mycfs_rq mycfs;
-#endif
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
 	/* list of leaf cfs_rq on this cpu: */
@@ -1056,9 +1052,7 @@ struct sched_class {
 extern const struct sched_class stop_sched_class;
 extern const struct sched_class rt_sched_class;
 extern const struct sched_class fair_sched_class;
-#ifdef CONFIG_MYCFS
 extern const struct sched_class mycfs_sched_class;
-#endif
 extern const struct sched_class idle_sched_class;
 
 
@@ -1095,9 +1089,7 @@ extern void update_max_interval(void);
 extern int update_runtime(struct notifier_block *nfb, unsigned long action, void *hcpu);
 extern void init_sched_rt_class(void);
 extern void init_sched_fair_class(void);
-#ifdef CONFIG_MYCFS
 extern void init_sched_mycfs_class(void);
-#endif
 extern void resched_task(struct task_struct *p);
 extern void resched_cpu(int cpu);
 
@@ -1359,10 +1351,8 @@ extern void print_cfs_stats(struct seq_file *m, int cpu);
 extern void print_rt_stats(struct seq_file *m, int cpu);
 
 extern void init_cfs_rq(struct cfs_rq *cfs_rq);
-#ifdef CONFIG_MYCFS
 extern void init_mycfs_rq(struct mycfs_rq *mycfs_rq, struct rq *rq)
 extern int mycfs_scheduler_tick(struct rq *rq);
-#endif
 extern void init_rt_rq(struct rt_rq *rt_rq, struct rq *rq);
 
 extern void cfs_bandwidth_usage_inc(void);
