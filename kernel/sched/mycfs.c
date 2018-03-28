@@ -653,7 +653,7 @@ task_fork_mycfs(struct task_struct *p)
 static void
 prio_changed_mycfs(struct rq *rq, struct task_struct *p, int oldprio)
 {
-
+	//IGNORE
 }
 
 /*
@@ -662,7 +662,17 @@ prio_changed_mycfs(struct rq *rq, struct task_struct *p, int oldprio)
 static void
 switched_from_mycfs(struct rq *rq, struct task_struct *p)
 {
+	struct sched_mycfs_entity *se = &p->myse;
+	struct mycfs_rq *Mycfs_rq = mycfs_rq_of(se);
 
+	if (!se->on_rq && p->state != TASK_RUNNING) {
+		{
+			u64 vruntime = Mycfs_rq->min_vruntime;
+			vruntime = max_vruntime(se->vruntime, vruntime);
+			se->vruntime = vruntime;
+		}
+		se->vruntime -= cfs_rq->min_vruntime;
+	}
 }
 
 /*
@@ -671,7 +681,9 @@ switched_from_mycfs(struct rq *rq, struct task_struct *p)
 static void
 switched_to_mycfs(struct rq *rq, struct task_struct *p)
 {
-
+	p->mycfs_cpu_limit = 0;
+	if (rq->curr == p)
+		resched_task(rq->curr);
 }
 
 /*
@@ -680,7 +692,7 @@ switched_to_mycfs(struct rq *rq, struct task_struct *p)
 static unsigned int
 get_rr_interval_mycfs(struct rq *rq, struct task_struct *task)
 {
-
+	return NS_TO_JIFFIES(SCHED_LATENCY)
 }
 
 const struct sched_class mycfs_sched_class = {
