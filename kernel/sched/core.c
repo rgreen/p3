@@ -2783,7 +2783,7 @@ void scheduler_tick(void)
 	skipped_task = mycfs_scheduler_tick(rq);
 	curr->sched_class->task_tick(rq, curr, 0);
 	if(skipped_task){
-		resched_task(curr)
+		resched_task(curr);
 	}
 	raw_spin_unlock(&rq->lock);
 
@@ -7074,7 +7074,7 @@ void __init sched_init(void)
 		rq->nr_running = 0;
 		rq->calc_load_active = 0;
 		rq->calc_load_update = jiffies + LOAD_FREQ;
-		init_mycfs_rq(&rq->mycfs);
+		init_mycfs_rq(&rq->mycfs, rq);
 		init_cfs_rq(&rq->cfs);
 		init_rt_rq(&rq->rt, rq);
 #ifdef CONFIG_FAIR_GROUP_SCHED
