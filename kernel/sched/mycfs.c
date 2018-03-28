@@ -446,30 +446,38 @@ mycfs_set_next_entity(struct mycfs_rq *Mycfs_rq, struct sched_mycfs_entity *se)
 static struct
 *pick_next_task_mycfs(struct rq *rq)
 {
-	struct mycfs_rq *mycfs_rq = &rq->mycfs;
+	struct mycfs_rq *Mycfs_rq = &rq->mycfs;
 	struct sched_mycfs_entity *se;
 
 	// You can't pick a task is there are none to choose from
-	if (!mycfs_rq->nr_running)
+	if (!Mycfs_rq->nr_running)
 		return NULL;
 	
 	// Pick the first entry
-	se = mycfs_pick_first_entity(mycfs_rq);
+	se = mycfs_pick_first_entity(Mycfs_rq);
 	if(!se)
 		return NULL;
 	
-	mycfs_set_next_entity(mycfs_rq, se);
+	mycfs_set_next_entity(Mycfs_rq, se);
 
 	return task_of(se);
 }
 
 /*
- *
+ * Update curr and enqueue 
  */
 static void
 put_prev_task_mycfs(struct rq *rq, struct task_struct *prev)
 {
+	struct sched_mycfs_entity *se = &p->myse;
+	struct mycfs_rq *Mycfs_rq = mycfs_rq_of(se);
 
+	if (se->on_rq){
+		mycfs_update_curr(Mycfs_rq);
+		__enqueue_entity(Mycfs_rq, se);
+	}
+
+	Mycfs_rq->curr = NULL;
 }
 
 #ifdef CONFIG_SMP
@@ -477,21 +485,10 @@ put_prev_task_mycfs(struct rq *rq, struct task_struct *prev)
  *
  */
 static int
-select_task_rq_fair(struct task_struct *p, int sd_flag, int wake_flags)
+select_task_rq_mycfs(struct task_struct *p, int sd_flag, int wake_flags)
 {
-
+	return task_cpu(p);
 }
-
-#ifdef CONFIG_MYCFS_GROUP_SCHED
-/*
- *
- */
-static void
-migrate_task_rq_mycfs(struct task_struct *p, int next_cpu)
-{
-
-}
-#endif
 
 /*
  *
@@ -499,7 +496,7 @@ migrate_task_rq_mycfs(struct task_struct *p, int next_cpu)
 static void
 rq_online_mycfs(struct rq *rq)
 {
-
+	// IGNORE
 }
 
 /*
@@ -508,26 +505,76 @@ rq_online_mycfs(struct rq *rq)
 static void
 rq_offline_mycfs(struct rq *rq)
 {
-
+	// IGNORE
 }
 
 /*
- *
+ * Wakeup task in mycfs
  */
 static void
 task_waking_mycfs(struct task_struct *p)
 {
+	struct sched_mycfs_entity *se = &task->myse;
+	struct mycfs_rq *Mycfs_rq = mycfs_rq_of(se);
+	u64 min_vruntime;
 
+#ifndef CONFIG_64BIT
+	u64 min_vruntime_copy;
+
+	do {
+		min_vruntime_copy = Mycfs_rq->min_vruntime_copy;
+		smp_rmb();
+		min_vruntime = Mycfs_rq->min_vruntime;
+	} while (min_vruntime != min_vruntime_copy);
+#else
+	min_vruntime = Mycfs_rq->min_vruntime;
+#endif
+	se->vruntime -= min_vruntime;
 }
 #endif
 
 /*
- *
+ * 
  */
 static void
 set_curr_task_mycfs(struct rq *rq)
 {
+	struct sched_mycfs_entity *se = &rq->curr->myse;
+	struct mycfs_rq *Mycfs_rq = mycfs_rq_of(se);
 
+	mycfs_set_next_entity(Mycfs_rq, se);
+}
+
+/*
+ * Check the time tick for preemption
+ */
+static void
+mycfs_check_preempt_tick(struct mycfs_rq *Mycfs_rq, struct sched_mycfs_entity *curr)
+{
+	unsigned long ideal_runtime, delta_exec;
+	struct sched_mycfs_entity *se;
+	u64 now = Mycfs_rq->rq->clock_task;
+	s64 delta;
+
+	ideal_runtime = sched_slice(Mycfs_rq, curr);
+
+	delta_exec = (unsigned long)(now - curr->exec_start);
+	if (delta_exec > ideal_runtime) {
+		resched_task(Mycfs_rq->rq->curr);
+		return;
+	}
+
+	if (delta_exec < SCHED_LATENCY)
+		return;
+
+	se = mycfs_pick_first_entity(Mycfs_rq);
+	delta = curr->vruntime - se-vruntime;
+
+	if (delta < 0)
+		return;
+
+	if (delta > ideal_runtime)
+		resched_task(Mycfs_rq->rq->curr);
 }
 
 /*
@@ -537,7 +584,20 @@ set_curr_task_mycfs(struct rq *rq)
 static void
 task_tick_mycfs(struct rq *rq, struct task_struct *curr, int queued)
 {
+	struct sched_mycfs_entity *se = &cyrr->myse;
+	struct mycfs_rq *Mycfs_rq = mycfs_rq_of(se);
+	int need_resched;
+	
+	need_resched = mycfs_update_curr(Mycfs_rq);
+	
+	if (need_resched) {
+		resched_task(curr);
+		return;
+	}
 
+	if (Mycfs_rq->nr_running > 1){
+		mycfs_check_preempt_tick(Mycfs_rq, se);
+	}
 }
 
 /*
@@ -585,17 +645,6 @@ get_rr_interval_mycfs(struct rq *rq, struct task_struct *task)
 
 }
 
-#ifdef CONFIG_MYCFS_GROUP_SCHED
-/*
- *
- */
-static void
-task_move_group_mycfs(struct task_struct *p, int on_rq)
-{
-
-}
-#endif
-
 const struct sched_class mycfs_sched_class = {
 	.next				= &idle_sched_class,
 	.enqueue_task		= enqueue_task_mycfs,
@@ -610,9 +659,7 @@ const struct sched_class mycfs_sched_class = {
 
 #ifdef CONFIG_SMP
 	.select_task_rq		= select_task_rq_mycfs,
-#ifdef CONFIG_MYCFS_GROUP_SCHED
-	.migrate_task_rq	= migrate_task_rq_mycfs,
-#endif
+	
 	.rq_online			= rq_online_mycfs,
 	.rq_offline			= rq_offline_mycfs,
 	
@@ -628,11 +675,6 @@ const struct sched_class mycfs_sched_class = {
 	.switched_to		= switched_to_mycfs,
 	
 	.get_rr_interval	= get_rr_interval_mycfs,
-	
-#ifdef CONFIG_MYCFS_GROUP_SCHED
-	.task_move_group	= task_move_group_mycfs,
-#endif
-
 };
 
 /*
