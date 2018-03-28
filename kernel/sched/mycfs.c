@@ -20,7 +20,7 @@ init_mycfs_rq(struct mycfs_rq *Mycfs_rq, struct rq *parent)
 	Mycfs_rq->min_vruntime = (u64)(-(1LL << 20));
 	Mycfs_rq->rq = parent;
 #ifndef CONFIG_64BIT
-	Mycfs->min_vruntime_copy = Mycfs_rq->min_vruntime;
+	Mycfs_rq->min_vruntime_copy = Mycfs_rq->min_vruntime;
 #endif
 
 }
@@ -31,14 +31,14 @@ init_mycfs_rq(struct mycfs_rq *Mycfs_rq, struct rq *parent)
 int
 mycfs_scheduler_tick(struct rq *rq)
 {
-	struct mycfs_rq *cfs_rq = &rq->mycfs;
+	struct mycfs_rq *Mycfs_rq = &rq->mycfs;
 	int rc = 0;
-	u64 now = cfs_rq->rq->clock_task;
-	if(now - cfs_rq->curr_period_start > CPU_PERIOD)
+	u64 now = Mycfs_rq->rq->clock_task;
+	if(now - Mycfs_rq->curr_period_start > CPU_PERIOD)
 	{
-		++cfs_rq->curr_period;
-		cfs_rq->curr_period_start = now;
-		if(cfs_rq->skipped_task)
+		++Mycfs_rq->curr_period;
+		Mycfs_rq->curr_period_start = now;
+		if(Mycfs_rq->skipped_task)
 			rc = 1;
 	}
 	return rc;
@@ -68,14 +68,14 @@ mycfs_rq_of(struct sched_mycfs_entity *myse)
  * Check if a limit has been put on the task
  */
 static inline int
-is_se_limited(struct sched_mycfs_entity *se, struct mycfs_rq *mycfs_rq)
+is_se_limited(struct sched_mycfs_entity *se, struct mycfs_rq *Mycfs_rq)
 {
 	struct task_struct *p = task_of(se);
-	if(p->mycfs_cpu_limit == 0)
+	if(p->mycfs_limit == 0)
 		return 0;
-	if(se->curr_period_id != cfs_rq->curr_period)
+	if(se->curr_period_id != Mycfs_rq->curr_period)
 		return 0;
-	if(se->curr_period_sum_runtime * 100 <= CPU_PERIOD * p->mycfs_cpu_limit)
+	if(se->curr_period_sum_runtime * 100 <= CPU_PERIOD * p->mycfs_limit)
 		return 0;
 	return 1;
 }
@@ -84,24 +84,24 @@ is_se_limited(struct sched_mycfs_entity *se, struct mycfs_rq *mycfs_rq)
  * Helper function to get the next task in the rbtree
  */
 static struct sched_mycfs_entity *
-mycfs_pick_first_entity(struct mycfs_rq *mycfs_rq)
+mycfs_pick_first_entity(struct mycfs_rq *Mycfs_rq)
 {
-	struct rb_node *left = cfs_rq->rb_leftmost;
+	struct rb_node *left = Mycfs_rq->rb_leftmost;
 	{
-		u64 now = mycfs_rq->rq->clock_task;
-		if(now - mycfs_rq->curr_period_start > CPU_PERIOD) {
-			++mycfs_rq->curr_period;
-			mycfs_rq->curr_period_start = now;
+		u64 now = Mycfs_rq->rq->clock_task;
+		if(now - Mycfs_rq->curr_period_start > CPU_PERIOD) {
+			++Mycfs_rq->curr_period;
+			Mycfs_rq->curr_period_start = now;
 		}
 	}
-	mycfs_rq->skipped_task = 0;
+	Mycfs_rq->skipped_task = 0;
 
 	while (left) {
-		struct sched_mycfs_entity *se = rb_etry(left, struct sched_mycfs_entity, run_node);
-		int is_limited = is_se_limited(se, mycfs_rq);
+		struct sched_mycfs_entity *se = rb_entry(left, struct sched_mycfs_entity, run_node);
+		int is_limited = is_se_limited(se, Mycfs_rq);
 		if (!is_limited)
 			return se;
-		mycfs_rq->skipped_task = 1;
+		Mycfs_rq->skipped_task = 1;
 		left = rb_next(left);
 	}
 
@@ -166,7 +166,7 @@ entity_before(struct sched_mycfs_entity *sea, struct sched_mycfs_entity *seb)
  * Perform the heavy lifting of enqueue
  */
 static void 
-__enqueue_entitiy(struct mycfs_rq * Mycfs_rq, struct sched_mycfs_entity *se)
+__enqueue_entity(struct mycfs_rq *Mycfs_rq, struct sched_mycfs_entity *se)
 {
 	struct rb_node **link = &Mycfs_rq->tasks_timeline.rb_node;
 	struct rb_node *parent = NULL;
@@ -192,7 +192,7 @@ __enqueue_entitiy(struct mycfs_rq * Mycfs_rq, struct sched_mycfs_entity *se)
 		Mycfs_rq->rb_leftmost = &se->run_node;
 
 	rb_link_node(&se->run_node, parent, link);
-	rb_insert_color(&se->run_node, &cfs_rq->tasks_timeline);
+	rb_insert_color(&se->run_node, &Mycfs_rq->tasks_timeline);
 }
 
 /*
@@ -207,7 +207,7 @@ __dequeue_entity(struct mycfs_rq *Mycfs_rq, struct sched_mycfs_entity *se)
 		Mycfs_rq->rb_leftmost = next_node;
 	}
 
-	rb_erase(&se->run_node, &Mycfs_rq->tasks_timeline)
+	rb_erase(&se->run_node, &Mycfs_rq->tasks_timeline);
 }
 
 /*
@@ -237,12 +237,12 @@ mycfs_update_min_vruntime(struct mycfs_rq *Mycfs_rq)
 
 	Mycfs_rq->min_vruntime = max_vruntime(Mycfs_rq->min_vruntime, vruntime);
 	{
-		struct rb_node *node = cfs_rq->rq_leftmost;
+		struct rb_node *node = Mycfs_rq->rb_leftmost;
 		while(node) {
 			struct sched_mycfs_entity *se = rb_entry(node, struct sched_mycfs_entity, run_node);
 
 			if (is_se_limited(se, Mycfs_rq)) 
-				se->vruntime = mac_vruntime(se->vruntime, Mycfs_rq->min_vruntime);
+				se->vruntime = max_vruntime(se->vruntime, Mycfs_rq->min_vruntime);
 			node = rb_next(node);
 		}
 	}
@@ -263,7 +263,7 @@ __update_curr_mycfs(struct mycfs_rq *Mycfs_rq, struct sched_mycfs_entity *curr, 
 	mycfs_update_min_vruntime(Mycfs_rq);
 
 	if (now - Mycfs_rq->curr_period_start > CPU_PERIOD){
-		++cfs_rq->curr_period;
+		++Mycfs_rq->curr_period;
 		Mycfs_rq->curr_period_start = now - delta_exec;
 	}
 
@@ -275,7 +275,7 @@ __update_curr_mycfs(struct mycfs_rq *Mycfs_rq, struct sched_mycfs_entity *curr, 
 		curr->curr_period_sum_runtime += delta_exec;
 	}
 
-	return is_se_limited(curr, cfs_rq);
+	return is_se_limited(curr, Mycfs_rq);
 }
 
 /*
@@ -334,14 +334,12 @@ enqueue_task_mycfs(struct rq *rq, struct task_struct *p, int flags)
 		se->vruntime = vruntime;
 	}
 
-	if (se != myfs_rq->curr)
+	if (se != Mycfs_rq->curr)
 		__enqueue_entity(Mycfs_rq, se);
 	
 	se->on_rq = 1;
 	inc_nr_running(rq);
 	++Mycfs_rq->nr_running;
-}
-
 }
 
 /*
@@ -444,8 +442,8 @@ mycfs_set_next_entity(struct mycfs_rq *Mycfs_rq, struct sched_mycfs_entity *se)
 /*
  * Choose the most appropriate task eligible to run next
  */
-static struct
-*pick_next_task_mycfs(struct rq *rq)
+static struct task_struct *
+pick_next_task_mycfs(struct rq *rq)
 {
 	struct mycfs_rq *Mycfs_rq = &rq->mycfs;
 	struct sched_mycfs_entity *se;
@@ -470,7 +468,7 @@ static struct
 static void
 put_prev_task_mycfs(struct rq *rq, struct task_struct *prev)
 {
-	struct sched_mycfs_entity *se = &p->myse;
+	struct sched_mycfs_entity *se = &prev->myse;
 	struct mycfs_rq *Mycfs_rq = mycfs_rq_of(se);
 
 	if (se->on_rq){
@@ -513,7 +511,7 @@ rq_offline_mycfs(struct rq *rq)
  * Wakeup task in mycfs
  */
 static void
-task_waking_mycfs(struct task_struct *p)
+task_waking_mycfs(struct task_struct *task)
 {
 	struct sched_mycfs_entity *se = &task->myse;
 	struct mycfs_rq *Mycfs_rq = mycfs_rq_of(se);
@@ -569,7 +567,7 @@ mycfs_check_preempt_tick(struct mycfs_rq *Mycfs_rq, struct sched_mycfs_entity *c
 		return;
 
 	se = mycfs_pick_first_entity(Mycfs_rq);
-	delta = curr->vruntime - se-vruntime;
+	delta = curr->vruntime - se->vruntime;
 
 	if (delta < 0)
 		return;
@@ -585,7 +583,7 @@ mycfs_check_preempt_tick(struct mycfs_rq *Mycfs_rq, struct sched_mycfs_entity *c
 static void
 task_tick_mycfs(struct rq *rq, struct task_struct *curr, int queued)
 {
-	struct sched_mycfs_entity *se = &cyrr->myse;
+	struct sched_mycfs_entity *se = &curr->myse;
 	struct mycfs_rq *Mycfs_rq = mycfs_rq_of(se);
 	int need_resched;
 	
@@ -615,7 +613,7 @@ task_fork_mycfs(struct task_struct *p)
 	unsigned long flags;
 	int need_resched;
 
-	raw_spin_lock_irqsave(*rq->lock, flags);
+	raw_spin_lock_irqsave(&rq->lock, flags);
 
 	update_rq_clock(rq);
 
@@ -672,7 +670,7 @@ switched_from_mycfs(struct rq *rq, struct task_struct *p)
 			vruntime = max_vruntime(se->vruntime, vruntime);
 			se->vruntime = vruntime;
 		}
-		se->vruntime -= cfs_rq->min_vruntime;
+		se->vruntime -= Mycfs_rq->min_vruntime;
 	}
 }
 
@@ -682,7 +680,7 @@ switched_from_mycfs(struct rq *rq, struct task_struct *p)
 static void
 switched_to_mycfs(struct rq *rq, struct task_struct *p)
 {
-	p->mycfs_cpu_limit = 0;
+	p->mycfs_limit = 0;
 	if (rq->curr == p)
 		resched_task(rq->curr);
 }
@@ -693,7 +691,7 @@ switched_to_mycfs(struct rq *rq, struct task_struct *p)
 static unsigned int
 get_rr_interval_mycfs(struct rq *rq, struct task_struct *task)
 {
-	return NS_TO_JIFFIES(SCHED_LATENCY)
+	return NS_TO_JIFFIES(SCHED_LATENCY);
 }
 
 const struct sched_class mycfs_sched_class = {
@@ -701,7 +699,6 @@ const struct sched_class mycfs_sched_class = {
 	.enqueue_task		= enqueue_task_mycfs,
 	.dequeue_task		= dequeue_task_mycfs,
 	.yield_task			= yield_task_mycfs,
-	.yield_to_task		= yield_to_task_mycfs,
 	
 	.check_preempt_curr	= check_preempt_wakeup,
 	

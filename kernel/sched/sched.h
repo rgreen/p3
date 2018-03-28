@@ -244,8 +244,12 @@ struct mycfs_rq{
 	u64 exec_clock;
 	u64 min_vruntime;
 #ifndef CONFIG_64BIT
-	u64 min_vruntime_copy
+	u64 min_vruntime_copy;
 #endif
+	
+	u64 curr_period;
+	u64 curr_period_start;
+
 
 	struct rb_root tasks_timeline;
 	struct rb_node *rb_leftmost;
