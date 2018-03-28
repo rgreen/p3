@@ -25,51 +25,31 @@ init_mycfs_rq(struct mycfs_rq *mycfs_rq, struct rq *parent)
 }
 
 /*
- * Perform the heavy lifting of enqueue
+ *
  */
-static void 
-__enqueue_entitiy(struct mycfs_rq * mycfs_rq, struct sched_mycfs_entity *se)
+int
+mycfs_scheduler_tick(struct rq *rq)
 {
-	struct rb_node **link = &mycfs_rq->tasks_timeline.rb_node;
-	struct rb_node *parent = NULL;
-	struct sched_mycfs_entity *entry;
-	int leftmost = 1;
-
-	/* Find the correct location in the rbtree */
-	while (*link){
-		parent = *link;
-		// Each entry is a mycfs se)
-		entry = rb_entry(parent, struct sched_mycfs_entity, run_node);
-		if (entity_before(se, entry)){
-			link = &parent->rb_left;
-		}
-		else {
-			link = &parent->rb_right;
-			leftmost = 0;
-		}
+	struct mycfs_rq *cfs_rq = &rq->mycfs;
+	int rc = 0;
+	u64 now = cfs_rq->rq->clock_task;
+	if(now - cfs_rq->curr_period_start > CPU_PERIOD)
+	{
+		++cfs_rq->curr_period;
+		cfs_rq->curr_period_start = now;
+		if(cfs_rq->skipped_task)
+			rc = 1;
 	}
-
-	// Cache of entries run the least ammount of time
-	if (leftmost)
-		cfs_rq->rb_leftmost = &se->run_node;
-
-	rb_link_node(&se->run_node, parent, link);
-	rb_insert_color(&se->run_node, &cfs_rq->tasks_timeline);
+	return rc;
 }
 
 /*
- * Perform the heavy lifting of dequeue
+ *
  */
-static void
-__dequeue_entity(struct mycfs_rq *mycfs_rq, struct sched_mycfs_entity *se)
+static inline struct task_struct *
+task_of(struct sched_mycfs_entity *myse)
 {
-	if (mycfs_rq->rb_leftmost == &se->run_node){
-		struct rb_node *next_node;
-		next_node = rb_next(&se->run_node);
-		mycfs_rq->rb_leftmost = next_node;
-	}
-
-	rb_erase(&se->run_node, &mycfs_rq->tasks_timeline)
+	return container_of(myse, struct task_struct, myse);
 }
 
 /*
@@ -97,6 +77,179 @@ is_se_limited(struct sched_mycfs_entity *se, struct mycfs_rq *mycfs_rq)
 	if(se->curr_period_sum_runtime * 100 <= CPU_PERIOD * p->mycfs_cpu_limit)
 		return 0;
 	return 1;
+}
+
+/*
+ * Helper function to get the next task in the rbtree
+ */
+static struct sched_mycfs_entity *
+mycfs_pick_first_entity(struct mycfs_rq *mycfs_rq)
+{
+	struct rb_node *left = cfs_rq->rb_leftmost;
+	{
+		u64 now = mycfs_rq->rq->clock_task;
+		if(now - mycfs_rq->curr_period_start > CPU_PERIOD) {
+			++mycfs_rq->curr_period;
+			mycfs_rq->curr_period_start = now;
+		}
+	}
+	mycfs_rq->skipped_task = 0;
+
+	while (left) {
+		struct sched_mycfs_entity *se = rb_etry(left, struct sched_mycfs_entity, run_node);
+		int is_limited = is_se_limited(se, mycfs_rq);
+		if (!is_limited)
+			return se;
+		mycfs_rq->skipped_task = 1;
+		left = rb_next(left);
+	}
+
+	return NULL;
+}
+
+/*
+ * Helper to get the default 10ms scheduling latency
+ */
+static u64
+__sched_period(unsigned long nr_running)
+{
+	u64 period = SCHED_LATENCY;
+	return period;
+}
+
+/*
+ * Helper
+ */
+static u64
+sched_slice(struct mycfs_rq *cfs_rq, struct sched_mycfs_entity *se)
+{
+	return __sched_period(cfs_rq->nr_running + !se->on_rq);
+}
+
+/*
+ * Helper to get max_vruntime
+ */
+static inline u64
+max_vruntime(u64 min_vruntime, u64 vruntime)
+{
+	s64 delta = (s64)(vruntime - min_vruntime);
+	if (delta > 0)
+		min_vruntime = vruntime;
+	
+	return min_vruntime;
+}
+
+/*
+ * Helper to get min_vruntime
+ */
+static inline u64
+min_vruntime(u64 min_vruntime, u64 vruntime)
+{
+	s64 delta = (s64)(vruntime - min_vruntime);
+	if (delta < 0)
+		min_vruntime = vruntime;
+	
+	return min_vruntime;
+}
+
+/*
+ * Helper to get vruntime difference of two SEs
+ */
+static inline int
+entity_before(struct sched_mycfs_entity *sea, struct sched_mycfs_entity *seb)
+{
+	return (s64)(sea->vruntime - seb->vruntime) < 0;
+}
+
+/*
+ * Perform the heavy lifting of enqueue
+ */
+static void 
+__enqueue_entitiy(struct mycfs_rq * Mycfs_rq, struct sched_mycfs_entity *se)
+{
+	struct rb_node **link = &Mycfs_rq->tasks_timeline.rb_node;
+	struct rb_node *parent = NULL;
+	struct sched_mycfs_entity *entry;
+	int leftmost = 1;
+
+	/* Find the correct location in the rbtree */
+	while (*link){
+		parent = *link;
+		// Each entry is a mycfs se)
+		entry = rb_entry(parent, struct sched_mycfs_entity, run_node);
+		if (entity_before(se, entry)){
+			link = &parent->rb_left;
+		}
+		else {
+			link = &parent->rb_right;
+			leftmost = 0;
+		}
+	}
+
+	// Cache of entries run the least ammount of time
+	if (leftmost)
+		Mycfs_rq->rb_leftmost = &se->run_node;
+
+	rb_link_node(&se->run_node, parent, link);
+	rb_insert_color(&se->run_node, &cfs_rq->tasks_timeline);
+}
+
+/*
+ * Perform the heavy lifting of dequeue
+ */
+static void
+__dequeue_entity(struct mycfs_rq *Mycfs_rq, struct sched_mycfs_entity *se)
+{
+	if (Mycfs_rq->rb_leftmost == &se->run_node){
+		struct rb_node *next_node;
+		next_node = rb_next(&se->run_node);
+		Mycfs_rq->rb_leftmost = next_node;
+	}
+
+	rb_erase(&se->run_node, &Mycfs_rq->tasks_timeline)
+}
+
+/*
+ * Update the min vruntime for the mycfs rq
+ */
+static void
+mycfs_update_min_vruntime(struct mycfs_rq *Mycfs_rq)
+{
+	u64 vruntime = Mycfs_rq->min_vruntime;
+	
+	// Is this the rq we are working on?
+	if (Mycfs_rq->curr)
+		vruntime = Mycfs_rq->curr->vruntime;
+
+	if (Mycfs_rq->rb_leftmost){
+		struct rb_node *node = Mycfs_rq->rb_leftmost;
+		while (node){
+			struct sched_mycfs_entity *se = rb_entry(node, struct sched_mycfs_entity, run_node);
+
+			if (!Mycfs_rq->curr)
+				vruntime = se->vruntime;
+			else
+				vruntime = min_vruntime(vruntime, se->vruntime);
+			break;
+		}
+	}
+
+	Mycfs_rq->min_vruntime = max_vruntime(Mycfs_rq->min_vruntime, vruntime);
+	{
+		struct rb_node *node = cfs_rq->rq_leftmost;
+		while(node) {
+			struct sched_mycfs_entity *se = rb_entry(node, struct sched_mycfs_entity, run_node);
+
+			if (is_se_limited(se, Mycfs_rq)) 
+				se->vruntime = mac_vruntime(se->vruntime, Mycfs_rq->min_vruntime);
+			node = rb_next(node);
+		}
+	}
+
+#ifndef CONFIG_64BIT
+	smp_wmb();
+	Mycfs_rq->min_vruntime_copy = Mycfs_rq->min_vruntime;
+#endif
 }
 
 /*
@@ -216,41 +369,6 @@ check_preempt_wakeup(struct rq *rq, struct task_struct *p, int wake_flags)
 	resched_task(curr);
 }
 
-/*
- *
- */
-static inline struct task_struct *
-task_of(struct sched_mycfs_entity *myse)
-{
-	return container_of(myse, struct task_struct, myse);
-}
-/*
- * Helper function to get the next task in the rbtree
- */
-static struct sched_mycfs_entity *
-mycfs_pick_first_entity(struct mycfs_rq *mycfs_rq)
-{
-	struct rb_node *left = cfs_rq->rb_leftmost;
-	{
-		u64 now = mycfs_rq->rq->clock_task;
-		if(now - mycfs_rq->curr_period_start > CPU_PERIOD) {
-			++mycfs_rq->curr_period;
-			mycfs_rq->curr_period_start = now;
-		}
-	}
-	mycfs_rq->skipped_task = 0;
-
-	while (left) {
-		struct sched_mycfs_entity *se = rb_etry(left, struct sched_mycfs_entity, run_node);
-		int is_limited = is_se_limited(se, mycfs_rq);
-		if (!is_limited)
-			return se;
-		mycfs_rq->skipped_task = 1;
-		left = rb_next(left);
-	}
-
-	return NULL;
-}
 
 /*
  * Choose the most appropriate task eligible to run next
