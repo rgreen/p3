@@ -4133,11 +4133,12 @@ set_scheduler_limit( pid_t pid, int limit)
 		return -EINVAL;
 	retval = -ESRCH;
 	rcu_read_lock();
-	p = (pid) ? (find_task_by_vpid(pid)) : current;
+	p = find_task_by_vpid(pid);
 	if(p) {
 		p->mycfs_limit = limit;
 		retval = 0;
 	}
+	rcu_read_unlock();
 	return retval;
 }
 
