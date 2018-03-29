@@ -11,6 +11,8 @@
 
 /*
  * Initialize mycfs rq in the same spirit as the cfs rq
+ * Called within core.c sched_init
+ * Arguments: rq->mycfs
  */
 void 
 init_mycfs_rq(struct mycfs_rq *Mycfs_rq, struct rq *parent)
@@ -24,7 +26,9 @@ init_mycfs_rq(struct mycfs_rq *Mycfs_rq, struct rq *parent)
 }
 
 /*
- *
+ * Get current time from clock
+ * Arguments: rq
+ * Returns rc (reschedule)
  */
 int
 mycfs_scheduler_tick(struct rq *rq)
@@ -43,7 +47,9 @@ mycfs_scheduler_tick(struct rq *rq)
 }
 
 /*
- *
+ * Get the address of the container of a member
+ * Arguments: scheduling entity
+ * Returns: Associated task_struct
  */
 static inline struct task_struct *
 task_of(struct sched_mycfs_entity *myse)
@@ -53,6 +59,8 @@ task_of(struct sched_mycfs_entity *myse)
 
 /*
  * Helper to get rq of se
+ * Arguments: se
+ * Returns: rq
  */
 static inline struct mycfs_rq *
 mycfs_rq_of(struct sched_mycfs_entity *myse)
@@ -64,6 +72,8 @@ mycfs_rq_of(struct sched_mycfs_entity *myse)
 
 /*
  * Check if a limit has been put on the task
+ * Arguments: se, mycfs_rq
+ * Returns: 1 if limited, otherwise 0 if not or invalid
  */
 static inline int
 is_se_limited(struct sched_mycfs_entity *se, struct mycfs_rq *Mycfs_rq)
@@ -80,6 +90,8 @@ is_se_limited(struct sched_mycfs_entity *se, struct mycfs_rq *Mycfs_rq)
 
 /*
  * Helper function to get the next task in the rbtree
+ * Arguments: mycfs_rq
+ * Returns: se (if exists)
  */
 static struct sched_mycfs_entity *
 mycfs_pick_first_entity(struct mycfs_rq *Mycfs_rq)
@@ -108,6 +120,8 @@ mycfs_pick_first_entity(struct mycfs_rq *Mycfs_rq)
 
 /*
  * Helper to get the default 10ms scheduling latency
+ * Arguments: nr_running (se's in the rb_tree)
+ * returns SCHED_LATENCY (10ms)
  */
 static u64
 __sched_period(unsigned long nr_running)
@@ -117,7 +131,9 @@ __sched_period(unsigned long nr_running)
 }
 
 /*
- * Helper
+ * Helper to calculate the slice by weight (not impl.)
+ * Arguments: mycfs_rq, se
+ * Returns: slice size (currently just a fixed 10ms)
  */
 static u64
 sched_slice(struct mycfs_rq *cfs_rq, struct sched_mycfs_entity *se)
@@ -127,6 +143,8 @@ sched_slice(struct mycfs_rq *cfs_rq, struct sched_mycfs_entity *se)
 
 /*
  * Helper to get max_vruntime
+ * Arguments: min_vruntime and vruntime
+ * Returns: Updated max_vruntime
  */
 static inline u64
 max_vruntime(u64 min_vruntime, u64 vruntime)
@@ -140,6 +158,8 @@ max_vruntime(u64 min_vruntime, u64 vruntime)
 
 /*
  * Helper to get min_vruntime
+ * Arguments: min_vruntime and vruntime
+ * Returns: updated min_vruntime
  */
 static inline u64
 min_vruntime(u64 min_vruntime, u64 vruntime)
@@ -153,6 +173,8 @@ min_vruntime(u64 min_vruntime, u64 vruntime)
 
 /*
  * Helper to get vruntime difference of two SEs
+ * Arguments: 2 se's
+ * Returns: Int difference of vruntimes
  */
 static inline int
 entity_before(struct sched_mycfs_entity *sea, struct sched_mycfs_entity *seb)
@@ -162,6 +184,8 @@ entity_before(struct sched_mycfs_entity *sea, struct sched_mycfs_entity *seb)
 
 /*
  * Perform the heavy lifting of enqueue
+ * Arguments: mycfs_rq, se
+ * Returns: NA
  */
 static void 
 __enqueue_entity(struct mycfs_rq *Mycfs_rq, struct sched_mycfs_entity *se)
@@ -195,6 +219,8 @@ __enqueue_entity(struct mycfs_rq *Mycfs_rq, struct sched_mycfs_entity *se)
 
 /*
  * Perform the heavy lifting of dequeue
+ * Arguments: mycfs_rq, se
+ * Returns: NA
  */
 static void
 __dequeue_entity(struct mycfs_rq *Mycfs_rq, struct sched_mycfs_entity *se)
@@ -210,6 +236,8 @@ __dequeue_entity(struct mycfs_rq *Mycfs_rq, struct sched_mycfs_entity *se)
 
 /*
  * Update the min vruntime for the mycfs rq
+ * Arguments: mycfs_rq
+ * Returns: NA
  */
 static void
 mycfs_update_min_vruntime(struct mycfs_rq *Mycfs_rq)
@@ -252,7 +280,9 @@ mycfs_update_min_vruntime(struct mycfs_rq *Mycfs_rq)
 }
 
 /*
- * Performs heacy lifting of updating periods
+ * Performs heavy lifting of updating periods
+ * Arguments: mycfs_rq, current se, delta exec, and current time
+ * Returns: int (if current entity is limited)
  */
 static inline int
 __update_curr_mycfs(struct mycfs_rq *Mycfs_rq, struct sched_mycfs_entity *curr, unsigned long delta_exec, u64 now)
@@ -278,6 +308,8 @@ __update_curr_mycfs(struct mycfs_rq *Mycfs_rq, struct sched_mycfs_entity *curr, 
 
 /*
  * Update curr for the mycfs scheduler (calls __update_curr_mycfs)
+ * ARguments: mycfs_rq
+ * Returns: Int (if reschedule)
  */
 static int
 mycfs_update_curr(struct mycfs_rq *Mycfs_rq)
@@ -310,6 +342,8 @@ mycfs_update_curr(struct mycfs_rq *Mycfs_rq)
 /*
  * Call when a task enters a runnable state
  * Puts task in runqueue and incrememnts nr_running
+ * ARguments: rq, task_struct, flags
+ * Returns: NA
  */
 static void
 enqueue_task_mycfs(struct rq *rq, struct task_struct *p, int flags)
@@ -344,6 +378,8 @@ enqueue_task_mycfs(struct rq *rq, struct task_struct *p, int flags)
  * Call when task is no longer runnable
  * Called to keep corresponding scheduling entity out of runqueue
  * Decrements nr_running
+ * Arguments: rq, task_struct, flags
+ * Returns: NA
  */
 static void
 dequeue_task_mycfs(struct rq *rq, struct task_struct *p, int flags)
@@ -369,6 +405,8 @@ dequeue_task_mycfs(struct rq *rq, struct task_struct *p, int flags)
 /*
  * Called to voluntarily give up CPU, but no go out of runnable
  * state (no nr_running change)
+ * Arguments: rq
+ * Returns: NA 
  */
 static void
 yield_task_mycfs(struct rq *rq)
@@ -383,6 +421,12 @@ yield_task_mycfs(struct rq *rq)
 	mycfs_update_curr(Mycfs_rq);
 	rq->skip_clock_update = 1;
 }
+
+/*
+ * Pick next process, checking if the process is limited
+ * Arguments: mycfs_rq, current se, se
+ * Returns: 0 if proceed
+ */
 
 static int
 wakeup_preempt_entity(struct mycfs_rq *Mycfs_rq, struct sched_mycfs_entity *curr, struct sched_mycfs_entity *se)
@@ -404,6 +448,8 @@ wakeup_preempt_entity(struct mycfs_rq *Mycfs_rq, struct sched_mycfs_entity *curr
 /*
  * Check if a task that entered runnable state should preempt
  * the currently running task
+ * Arguments: rq, task_struct, wake_flags
+ * Return: NA
  */
 static void
 check_preempt_wakeup(struct rq *rq, struct task_struct *p, int wake_flags)
@@ -426,6 +472,8 @@ check_preempt_wakeup(struct rq *rq, struct task_struct *p, int wake_flags)
 
 /*
  * Helper function to perform a dequeue and set curr as se
+ * Arguments: mycfs_rq, se
+ * Returns: None 
  */
 static inline void
 mycfs_set_next_entity(struct mycfs_rq *Mycfs_rq, struct sched_mycfs_entity *se)
@@ -439,6 +487,8 @@ mycfs_set_next_entity(struct mycfs_rq *Mycfs_rq, struct sched_mycfs_entity *se)
 
 /*
  * Choose the most appropriate task eligible to run next
+ * Arguements: rq
+ * Returns: Task_struct of new se 
  */
 static struct task_struct *
 pick_next_task_mycfs(struct rq *rq)
@@ -462,6 +512,8 @@ pick_next_task_mycfs(struct rq *rq)
 
 /*
  * Update curr and enqueue 
+ * Arguments: rq, task_struct
+ * Returns: NA
  */
 static void
 put_prev_task_mycfs(struct rq *rq, struct task_struct *prev)
@@ -479,7 +531,8 @@ put_prev_task_mycfs(struct rq *rq, struct task_struct *prev)
 
 #ifdef CONFIG_SMP
 /*
- *
+ * Arguments: Task struct, sd_flag, wake_flags
+ * Returns: CPU#
  */
 static int
 select_task_rq_mycfs(struct task_struct *p, int sd_flag, int wake_flags)
@@ -488,7 +541,7 @@ select_task_rq_mycfs(struct task_struct *p, int sd_flag, int wake_flags)
 }
 
 /*
- *
+ * NA
  */
 static void
 rq_online_mycfs(struct rq *rq)
@@ -497,7 +550,7 @@ rq_online_mycfs(struct rq *rq)
 }
 
 /*
- *
+ * NA
  */
 static void
 rq_offline_mycfs(struct rq *rq)
@@ -507,6 +560,8 @@ rq_offline_mycfs(struct rq *rq)
 
 /*
  * Wakeup task in mycfs
+ * Arguments: task_struct
+ * Returns: NA
  */
 static void
 task_waking_mycfs(struct task_struct *task)
@@ -531,7 +586,9 @@ task_waking_mycfs(struct task_struct *task)
 #endif
 
 /*
- * 
+ * Set current se to current task of myse and get rq of it
+ * Arguments: rq
+ * Returns: NA
  */
 static void
 set_curr_task_mycfs(struct rq *rq)
@@ -544,6 +601,8 @@ set_curr_task_mycfs(struct rq *rq)
 
 /*
  * Check the time tick for preemption
+ * Arguments: mycfs_rq, current se
+ * Returns: NA
  */
 static void
 mycfs_check_preempt_tick(struct mycfs_rq *Mycfs_rq, struct sched_mycfs_entity *curr)
@@ -577,6 +636,8 @@ mycfs_check_preempt_tick(struct mycfs_rq *Mycfs_rq, struct sched_mycfs_entity *c
 /*
  * Called by time tick functions. May lead to process switch
  * This drives the running preemption
+ * Arguments: rq, current task_struct, queued
+ * Returns: NA
  */
 static void
 task_tick_mycfs(struct rq *rq, struct task_struct *curr, int queued)
@@ -600,6 +661,8 @@ task_tick_mycfs(struct rq *rq, struct task_struct *curr, int queued)
 /*
  * Notify the scheduler if a new task has spawned
  * Do tasks necessary to forking said task
+ * Arguments: task_struct
+ * Returnts: NA
  */
 static void
 task_fork_mycfs(struct task_struct *p)
@@ -645,7 +708,7 @@ task_fork_mycfs(struct task_struct *p)
 }
 
 /*
- *
+ * NA
  */
 static void
 prio_changed_mycfs(struct rq *rq, struct task_struct *p, int oldprio)
@@ -654,7 +717,9 @@ prio_changed_mycfs(struct rq *rq, struct task_struct *p, int oldprio)
 }
 
 /*
- *
+ * Do updates when task goes on new scheduler
+ * Arguments: rq, task_struct
+ * Returns: NA
  */
 static void
 switched_from_mycfs(struct rq *rq, struct task_struct *p)
@@ -673,7 +738,9 @@ switched_from_mycfs(struct rq *rq, struct task_struct *p)
 }
 
 /*
- *
+ * Do updates when go to mycfs_scheduler
+ * Arguments: rq, task_struct
+ * Returns: NA
  */
 static void
 switched_to_mycfs(struct rq *rq, struct task_struct *p)
@@ -684,7 +751,9 @@ switched_to_mycfs(struct rq *rq, struct task_struct *p)
 }
 
 /*
- *
+ * Unit conversion
+ * Arguments: rq, task_struct
+ * Returns: Converted time (int)
  */
 static unsigned int
 get_rr_interval_mycfs(struct rq *rq, struct task_struct *task)
