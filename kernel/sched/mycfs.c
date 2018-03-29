@@ -16,13 +16,11 @@ void
 init_mycfs_rq(struct mycfs_rq *Mycfs_rq, struct rq *parent)
 {	
 	Mycfs_rq->tasks_timeline = RB_ROOT;
-	Mycfs_rq->tasks_timeline = RB_ROOT;
 	Mycfs_rq->min_vruntime = (u64)(-(1LL << 20));
 	Mycfs_rq->rq = parent;
 #ifndef CONFIG_64BIT
 	Mycfs_rq->min_vruntime_copy = Mycfs_rq->min_vruntime;
 #endif
-
 }
 
 /*

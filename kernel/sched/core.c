@@ -4125,12 +4125,19 @@ static int
 set_scheduler_limit( pid_t pid, int limit)
 {
 	int retval;
-
-	if( pid < 0)
+	struct task_struct *p;
+	
+	if (pid < 0)
 		return -EINVAL;
-	if( limit < 0 || limit > 100)
+	if (limit < 0 || limit > 100)
 		return -EINVAL;
-	retval = 0;
+	retval = -ESRCH;
+	rcu_read_lock();
+	p = (pid) ? (find_task_by_vpid(pid)) : current;
+	if(p) {
+		p->mycfs_limit = limit;
+		retval = 0;
+	}
 	return retval;
 }
 
